@@ -1,0 +1,334 @@
+C51 COMPILER V7.10   MAIN                                                                  01/12/2022 17:22:05 PAGE 1   
+
+
+C51 COMPILER V7.10, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN main.OBJ
+COMPILER INVOKED BY: D:\Keil\C51\BIN\C51.EXE main.c COMPACT BROWSE DEBUG OBJECTEXTEND
+
+line level    source
+
+   1          #include "reg51.h"
+   2          #include "lcd.h"
+   3          
+   4          void upTime();
+   5          void  month29(int y);
+   6          void week7(int day, int month, int year);
+   7          void movePoint();
+   8          void isPoint();
+   9          void display();
+  10          void add_second();
+  11          void add_minute();
+  12          void add_hour();
+  13          void add_day();
+  14          void add_month();
+  15          
+  16          typedef unsigned char u8;
+  17          typedef unsigned int u16;
+  18          
+  19          u8 Weeks[7][10] = {"Mon","Tue","Wed","Thu","Fri","Sat","Sun"};
+  20          u16 Months[12] = {31,28,31,30,31,30,31,31,30,31,30,31};
+  21          u16 texts[6] = {2022,12,31,23,59,55};
+  22          int Week = 5 ;
+  23          
+  24          sbit k1 = P3^1;
+  25          sbit k3 = P3^2;
+  26          sbit k2 = P3^0;
+  27          sbit k4 = P3^3;
+  28          int inum = 0; //计时器计数
+  29          int flag = 1;
+  30          int setIndex = 0;
+  31          u16 add[6] = {0x83,0x86,0x89,0x80+0x40+5,0x80+0x40+8,0x80+0x40+11};
+  32          
+  33          // 设置定时器，计数1000次正好是1ms，此时产生一个中断
+  34          void TimeOut0()
+  35          {
+  36   1              TMOD|=0x01;
+  37   1              TH0=0xFC;
+  38   1              TL0=0x18;                                                                                                                                                              
+             -                                                                                                              
+  39   1              ET0=1;
+  40   1              EA=1;
+  41   1              TR0=1;
+  42   1      }
+  43          
+  44          void delay(int j)
+  45          {
+  46   1              while(j--);
+  47   1      }
+  48          
+  49          //判断按键按下
+  50          void keydown()
+  51          {
+  52   1              if(k3==0)
+  53   1              {
+  54   2                      delay(1000);
+C51 COMPILER V7.10   MAIN                                                                  01/12/2022 17:22:05 PAGE 2   
+
+  55   2                      if(k3==0)
+  56   2                      {
+  57   3                              flag = !flag;
+  58   3                              isPoint();
+  59   3                      }
+  60   2      
+  61   2                      while(!k3);
+  62   2              }
+  63   1              if(k1==0&&!flag)
+  64   1              {
+  65   2                      delay(1000);
+  66   2                      if(k1==0)
+  67   2                      {
+  68   3                              setIndex ++  ;
+  69   3                              if(setIndex==6)setIndex=0;
+  70   3                              LcdWriteCom(add[setIndex]);
+  71   3                      }
+  72   2      
+  73   2                      while(!k1);
+  74   2              }
+  75   1              if(k2==0&&!flag)
+  76   1              {
+  77   2                      delay(1000);
+  78   2                      if(k2==0)
+  79   2                      {
+  80   3                              if(setIndex==0)
+  81   3                              {
+  82   4                                      texts[0]++;
+  83   4                                      week7(texts[2],texts[1],texts[0]);
+  84   4                              }
+  85   3                              else if(setIndex==1)
+  86   3                              {
+  87   4                                      add_month();
+  88   4                                      week7(texts[2],texts[1],texts[0]);
+  89   4                              }
+  90   3                              else if(setIndex==2)add_day();
+  91   3                              else if(setIndex==3)add_hour();
+  92   3                              else if(setIndex==4)add_minute();
+  93   3                              else if(setIndex==5)add_second();
+  94   3                              display();
+  95   3                              LcdWriteCom(add[setIndex]);
+  96   3                      }
+  97   2      
+  98   2                      while(!k2);
+  99   2              }
+ 100   1              // 拓展 k4 按钮为减一操作按钮
+ 101   1              if(k4==0&&!flag)
+ 102   1              {
+ 103   2                      delay(1000);
+ 104   2                      if(k4==0)
+ 105   2                      {
+ 106   3                              if(setIndex<3)
+ 107   3                              {
+ 108   4                                      //不应该能调到 0年 0 月 0日
+ 109   4                                      if(texts[setIndex]==1)texts[setIndex]=2;
+ 110   4                              }
+ 111   3                              else
+ 112   3                              {
+ 113   4                                      // 可以跳到 0 时 0分 0秒
+ 114   4                                      if(texts[setIndex]==0)texts[setIndex]=1;
+ 115   4                              }
+ 116   3                              texts[setIndex]--;
+C51 COMPILER V7.10   MAIN                                                                  01/12/2022 17:22:05 PAGE 3   
+
+ 117   3                              month29(texts[0]);
+ 118   3                              week7(texts[2],texts[1],texts[0]);
+ 119   3                              display();
+ 120   3                              LcdWriteCom(add[setIndex]);
+ 121   3                              
+ 122   3                      }
+ 123   2      
+ 124   2                      while(!k4);
+ 125   2              }
+ 126   1              
+ 127   1      }
+ 128          
+ 129          void display()
+ 130          {
+ 131   1              //LcdWriteCom(0x80);
+ 132   1              //年
+ 133   1               LcdWriteCom(0x80);
+ 134   1              LcdWriteData('0'+texts[0]/1000);
+ 135   1              LcdWriteData('0'+texts[0]/100%10);
+ 136   1              LcdWriteData('0'+texts[0]/10%10);
+ 137   1              LcdWriteData('0'+texts[0]%10);
+ 138   1              LcdWriteData('-');
+ 139   1              //月
+ 140   1              LcdWriteData('0'+texts[1]/10);
+ 141   1              LcdWriteData('0'+texts[1]%10);
+ 142   1              LcdWriteData('-');
+ 143   1              //日
+ 144   1              LcdWriteData('0'+texts[2]/10);
+ 145   1              LcdWriteData('0'+texts[2]%10);
+ 146   1              LcdWriteData(' ');
+ 147   1              LcdWriteData(' ');
+ 148   1              LcdWriteData(' ');
+ 149   1              //周
+ 150   1              LcdWriteData(Weeks[Week][0]);
+ 151   1              LcdWriteData(Weeks[Week][1]);
+ 152   1              LcdWriteData(Weeks[Week][2]);
+ 153   1      
+ 154   1          LcdWriteCom(0x80+0X40);
+ 155   1              LcdWriteData(' ');
+ 156   1              LcdWriteData(' ');;
+ 157   1              LcdWriteData(' ');
+ 158   1              LcdWriteData(' ');
+ 159   1      
+ 160   1              //时
+ 161   1      
+ 162   1              LcdWriteData('0'+texts[3]/10);                          
+ 163   1              LcdWriteData('0'+texts[3]%10);                           
+ 164   1              LcdWriteData('-');
+ 165   1              //分
+ 166   1              LcdWriteData('0'+texts[4]/10);                          
+ 167   1              LcdWriteData('0'+texts[4]%10);  
+ 168   1              LcdWriteData('-');
+ 169   1              //秒
+ 170   1              LcdWriteData('0'+texts[5]/10);                          
+ 171   1              LcdWriteData('0'+texts[5]%10);
+ 172   1      
+ 173   1      }
+ 174          
+ 175          void main()
+ 176          {
+ 177   1              LcdInit();
+ 178   1              TimeOut0();
+C51 COMPILER V7.10   MAIN                                                                  01/12/2022 17:22:05 PAGE 4   
+
+ 179   1              display();
+ 180   1      
+ 181   1              while(1)
+ 182   1              {
+ 183   2                      keydown();
+ 184   2              }
+ 185   1      }
+ 186          
+ 187          // 中断，处理计时器产生的中断  ，一秒产生一次中断
+ 188          void Time0() interrupt 1
+ 189          {
+ 190   1              if(flag)
+ 191   1              {
+ 192   2                      
+ 193   2                      TH0=0xFC;
+ 194   2                      TL0=0x18;
+ 195   2                      inum++;
+ 196   2                      if(inum==1000)
+ 197   2                      {
+ 198   3                              inum=0;
+ 199   3                              upTime();
+ 200   3                      }
+ 201   2              }
+ 202   1      }
+ 203          
+ 204          //更新时间
+ 205          void upTime()
+ 206          {
+ 207   1              add_second();
+ 208   1              display();
+ 209   1      }
+ 210          void add_second()
+ 211          {
+ 212   1              texts[5]++;
+ 213   1              if(texts[5]>=60)
+ 214   1              {
+ 215   2                       texts[5] = 0 ;
+ 216   2                       add_minute();
+ 217   2              }
+ 218   1      }
+ 219          void add_minute()
+ 220          {
+ 221   1              texts[4]++;
+ 222   1              if(texts[4]>=60)
+ 223   1              {
+ 224   2                       texts[4] = 0;
+ 225   2                       add_hour();
+ 226   2              }
+ 227   1      }
+ 228          void add_hour()
+ 229          {
+ 230   1               texts[3]++;
+ 231   1              if(texts[3]>=24)
+ 232   1              {
+ 233   2                       texts[3] = 0 ;
+ 234   2                       add_day();
+ 235   2              }
+ 236   1      }
+ 237          void add_day()
+ 238          {
+ 239   1              texts[2]++;
+ 240   1              Week++;
+C51 COMPILER V7.10   MAIN                                                                  01/12/2022 17:22:05 PAGE 5   
+
+ 241   1              if(Week>=7)Week=0;
+ 242   1              if(texts[2]>=Months[texts[1]-1]+1)
+ 243   1              {
+ 244   2                       texts[2] = 1;
+ 245   2                       add_month();
+ 246   2              }
+ 247   1      }
+ 248          void add_month()
+ 249          {
+ 250   1              texts[1]++;
+ 251   1              month29(texts[0]);
+ 252   1              if(texts[1]>=13)
+ 253   1              {
+ 254   2                       texts[0]++;
+ 255   2                       texts[1]=1;
+ 256   2              }
+ 257   1      }
+ 258          //根据日子判断闰年
+ 259          void  month29(int y)
+ 260          {
+ 261   1              if(y%400==0||(y%4==0&&y%100!=0))
+ 262   1              {
+ 263   2                      Months[1]=29;
+ 264   2              }
+ 265   1              else
+ 266   1              {
+ 267   2                      Months[1]=28;
+ 268   2              }
+ 269   1      }
+ 270          //根据日子判断周几
+ 271          void week7(int day, int month, int year)
+ 272          {
+ 273   1          /* 输入年份之前的年份的天数贡献 */
+ 274   1          u16 days = 365 * (year - 1971) + (year - 1969) / 4;
+ 275   1          /* 输入年份中，输入月份之前的月份的天数贡献 */
+ 276   1              int i = 0;
+ 277   1          for (; i < month - 1; ++i) {
+ 278   2              days += Months[i];
+ 279   2          }
+ 280   1          if ((year % 400 == 0 || (year % 4 == 0 && year % 100 != 0)) && month >= 3) {
+ 281   2              days += 1;
+ 282   2          }
+ 283   1          /* 输入月份中的天数贡献 */
+ 284   1          days += day;
+ 285   1              //更新日期下标
+ 286   1              Week = (days+3)%7;
+ 287   1      }
+ 288          //打开光标，显示正在更改某位
+ 289          void isPoint()
+ 290          {
+ 291   1              if(!flag)
+ 292   1              {
+ 293   2                      LcdWriteCom(0x0E);
+ 294   2                      setIndex=0;
+ 295   2                      LcdWriteCom(add[setIndex]);
+ 296   2              }
+ 297   1              else LcdWriteCom(0x0C);
+ 298   1      
+ 299   1      
+ 300   1      }
+
+
+C51 COMPILER V7.10   MAIN                                                                  01/12/2022 17:22:05 PAGE 6   
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1502    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =    126       4
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
